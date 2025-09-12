@@ -1,6 +1,5 @@
 import logging
 import time
-import numpy as np
 
 from fastapi import FastAPI, HTTPException, Response, Request
 from pydantic import BaseModel
@@ -47,7 +46,6 @@ model_accuracy_score = Gauge(
     registry=registry
 )
 
-# Nouvelles métriques : Gauges pour Precision, Recall, F1-score par catégorie
 model_precision_score = Gauge(
     'model_precision_score',
     'Precision score of the News Classifier model by category',
@@ -58,25 +56,23 @@ model_precision_score = Gauge(
 model_recall_score = Gauge(
     'model_recall_score',
     'Recall score of the News Classifier model by category',
-    ['category'], # Avec un label pour la catégorie
+    ['category'],
     registry=registry
 )
 
 model_f1_score = Gauge(
     'model_f1_score',
     'F1 score of the News Classifier model by category',
-    ['category'], # Avec un label pour la catégorie
+    ['category'],
     registry=registry
 )
 
-# Nouvel Histogramme pour la longueur des textes d'entrée
 input_text_length_histogram = Histogram(
     'input_text_length_chars',
     'Length of input text in characters',
     registry=registry
 )
 
-# Nouvel Histogramme pour le score de confiance des prédictions
 prediction_confidence_score_histogram = Histogram(
     'prediction_confidence_score',
     'Confidence score of model predictions',
@@ -97,7 +93,6 @@ class PredictionOutput(BaseModel):
     category: str
     score: float
 
-# Modèle de données pour l'évaluation
 class EvaluationItem(BaseModel):
     text: str
     true_label: str
@@ -117,7 +112,6 @@ async def predict(article: ArticleInput):
             status_code = "400"
             raise HTTPException(status_code=400, detail="Input text cannot be empty.")
 
-        # Observer la longueur du texte d'entrée
         input_text_length_histogram.observe(len(article.text))
         results = classifier(article.text)
         if not results:
@@ -127,9 +121,7 @@ async def predict(article: ArticleInput):
 
         predicted_category = results[0]['label']
         confidence_score = results[0]['score']
-
         predictions_by_category.labels(category=predicted_category).inc()
-        # Observer le score de confiance
         prediction_confidence_score_histogram.observe(confidence_score)
 
         logger.info(f"Classified text: '{article.text[:50]}...' into category: '{predicted_category}' with score: {confidence_score:.4f}")
@@ -148,7 +140,6 @@ async def predict(article: ArticleInput):
         api_request_duration_seconds.labels(endpoint="/predict", method="POST", status_code=status_code).observe(duration)
         api_requests_total.labels(endpoint="/predict", method="POST", status_code=status_code).inc()
 
-# Endpoint pour évaluer le modèle
 @app.post("/evaluate")
 async def evaluate_model(items: List[EvaluationItem]):
     """
@@ -166,8 +157,6 @@ async def evaluate_model(items: List[EvaluationItem]):
         true_labels = []
         predicted_labels = []
         total_predictions = len(items)
-        
-        # Récupérer toutes les catégories uniques pour les métriques par catégorie
         all_categories = sorted(list(set([item.true_label.lower() for item in items] + [val.lower() for val in getattr(classifier, 'model').config.id2label.values()])))
 
         for item in items:
@@ -184,11 +173,8 @@ async def evaluate_model(items: List[EvaluationItem]):
         if not true_labels: 
             raise HTTPException(status_code=500, detail="No successful predictions during evaluation.")
 
-        # Calcul de l'Accuracy globale
         accuracy = accuracy_score(true_labels, predicted_labels)
         model_accuracy_score.set(accuracy)
-
-        # Calcul de Precision, Recall, F1-score par catégorie
         p, r, f1, _ = precision_recall_fscore_support(true_labels, predicted_labels, labels=all_categories, average=None, zero_division=0)
 
         for i, category in enumerate(all_categories):
