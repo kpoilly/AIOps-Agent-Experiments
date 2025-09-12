@@ -1,10 +1,104 @@
 services:
-  groq-llm-api:
-    build: ./src/groq-llm-api
+  news-classifier-api:
+    build: ./src/api
     ports:
       - "8080:8080"
+    restart: always
+
+  evaluation:
+    build: ./src/evaluation
+    depends_on:
+      - news-classifier-api
+
+  aiops-agent-monitor:
+    build: ./src/aiops_agent_monitor
+    ports:
+      - "8005:8005"
     environment:
       - GROQ_API_KEY=${GROQ_API_KEY}
       - GROQ_MODEL_NAME=${GROQ_MODEL_NAME}
-    mem_limit: "1g" 
+      - LANGCHAIN_TRACING_V2="true"
+      - LANGCHAIN_API_KEY=${LANGCHAIN_API_KEY}
+      - LANGCHAIN_PROJECT="AIOps Monitor Agent Internal Runs"
+    depends_on:
+      - prometheus
+      - loki
+      - news-classifier-api
     restart: always
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./deployment/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./deployment/prometheus/rules:/etc/prometheus/rules
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    restart: always
+  
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./deployment/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
+      - ./deployment/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
+      - ./deployment/grafana/dashboards:/var/lib/grafana/dashboards
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_DASHBOARDS_JSON_ENABLED=true
+    depends_on:
+      - prometheus
+    restart: always
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: node-exporter
+    ports:
+      - "9100:9100"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/rootfs'
+    restart: always
+
+  loki:
+    image: grafana/loki:latest
+    container_name: loki
+    ports:
+      - "3100:3100"
+    volumes:
+      - loki_data:/loki
+      - ./deployment/loki/loki-config.yaml:/etc/loki/config.yaml
+    command: -config.file=/etc/loki/config.yaml
+    restart: always
+
+  promtail:
+    image: grafana/promtail:latest
+    container_name: promtail
+    volumes:
+      - ./deployment/promtail/promtail-config.yaml:/etc/promtail/config.yaml
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: -config.file=/etc/promtail/config.yaml
+    depends_on:
+      - loki
+    restart: always
+
+volumes:
+  prometheus_data: {}
+  grafana_data: {}
+  loki_data: {}

@@ -1,0 +1,61 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml 
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: docker
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+    relabel_configs:
+      # Relabeling rules to extract useful metadata from Docker labels and environment variables,
+      # and transform them into Loki labels.
+      
+      # Extract container name as a label. Docker metadata typically includes '/container_name'.
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(.*)' # Capture everything after '/'
+        target_label: 'container_name' # New label in Loki
+
+      # Extract Docker Compose service name as a label.
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_service']
+        target_label: 'service' # New label in Loki
+
+      # Extract Docker Compose project name as a label.
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_project']
+        target_label: 'project' # New label in Loki
+      
+      # Extract the log stream (stdout/stderr)
+      - source_labels: ['__meta_docker_container_log_stream']
+        target_label: 'stream'
+
+      # Extract the container ID (useful for linking to Docker events)
+      - source_labels: ['__meta_docker_container_id']
+        target_label: 'container_id'
+
+      # Extract image name (e.g., grafana/grafana:latest)
+      - source_labels: ['__meta_docker_image']
+        regex: '(.+)'
+        target_label: 'image'
+
+      # Extract image name without tag (e.g., grafana/grafana)
+      - source_labels: ['__meta_docker_image']
+        regex: '(.+?):.*'
+        target_label: 'image_name'
+
+      # Add a generic 'host' label (e.g., 'docker-host')
+      - target_label: 'host'
+        replacement: 'docker-host'
+
+      # Clean up: Drop all other docker meta labels to keep logs clean in Loki.
+      - action: drop
+        regex: '__meta_docker_.*'
+      
+      # Add a specific label for the job (from the scrape config)
+      - target_label: 'job'
+        replacement: 'docker'
