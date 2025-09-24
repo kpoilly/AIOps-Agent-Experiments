@@ -1,17 +1,19 @@
 import os
+import uuid
 import time
 import logging
 
 from fastapi import FastAPI, Request, Response, HTTPException, Body
 from prometheus_client import generate_latest, Counter, Histogram, Gauge
 
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, BaseMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langgraph.graph import StateGraph
 from langgraph.prebuilt import ToolNode 
+from langgraph.checkpoint.postgres import PostgresSaver
 
 from state import AgentState
 
@@ -83,6 +85,29 @@ deployed_diagnostic_tools = [
 ]
 logger.info(f"{len(deployed_diagnostic_tools)} tools available to the deployed AIOps Diagnostic Agent.")
 
+# --- Connexion à PostgreSQL pour le Checkpointer ---
+POSTGRES_HOST = os.getenv("POSTGRES_HOST", "postgres")
+POSTGRES_PORT = os.getenv("POSTGRES_PORT", "5432")
+POSTGRES_DB = os.getenv("POSTGRES_DB", "agent_checkpoints")
+POSTGRES_USER = os.getenv("POSTGRES_USER", "agent_user")
+POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "agent_password")
+POSTGRES_DB_URI = (
+    f"postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}@"
+    f"{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_DB}?sslmode=disable"
+)
+memory: Optional[PostgresSaver] = None
+
+try:
+    with PostgresSaver.from_conn_string(POSTGRES_DB_URI) as checkpointer_instance:
+        checkpointer_instance.setup()
+        logger.info("PostgresSaver tables setup completed.")
+        global_memory_checkpointer = checkpointer_instance
+    logger.info(f"PostgresSaver initialized and setup completed. Checkpointer instance stored globally.") 
+
+except Exception as e:
+    logger.error(f"Error initializing PostgresSaver or connecting to PostgreSQL: {e}", exc_info=True)
+    exit(1)
+
 # --- Define the Diagnostic Agent LangGraph Workflow ---
 def llm_agent_node(state: AgentState) -> Dict[str, Any]:
     logger.info(f"Node 'llm_agent_node': Agent processing alert: {state['alert_info']}")
@@ -146,7 +171,7 @@ diagnostic_workflow.add_conditional_edges(
 )
 diagnostic_workflow.add_edge("tool_executor", "llm_agent_node") 
 diagnostic_workflow.set_finish_point("finalize_diagnosis")
-diagnostic_agent_instance = diagnostic_workflow.compile()
+diagnostic_agent_instance = diagnostic_workflow.compile(checkpointer=memory)
 logger.info("MLOps Diagnostic Agent (LangGraph) instantiated successfully and compiled.")
 
 # --- Middleware for request metrics ---
@@ -179,10 +204,13 @@ async def diagnose_alert(alert_payload: Dict[str, Any] = Body(...)):
     alert_name = alert_payload.get("alerts", [{}])[0].get("labels", {}).get("alertname", "Unknown Alert")
     alert_service = alert_payload.get("alerts", [{}])[0].get("labels", {}).get("service", "Unknown Service")
     alert_summary = alert_payload.get("alerts", [{}])[0].get("annotations", {}).get("summary", "No summary provided.")
-    
+    alert_fingerprint = alert_payload.get("alerts", [{}])[0].get("fingerprint", str(uuid.uuid4()))
+
     alert_info_for_agent = f"Alert '{alert_name}' for service '{alert_service}': {alert_summary}"
     logger.info(f"Received alert from external system for diagnosis: '{alert_info_for_agent}'")
-    
+
+    thread_id = f"alert_diagnosis_{alert_fingerprint}" 
+    config = {"configurable": {"thread_id": thread_id}}
     start_agent_run_time = time.time()
     try:
         initial_state = AgentState(
@@ -194,10 +222,11 @@ async def diagnose_alert(alert_payload: Dict[str, Any] = Body(...)):
             grafana_link="",    
             final_result=None,
             investigation_query="", investigation_step=0, max_investigation_steps=0, logs_found=False,
-            proposed_action="", human_approval_needed=False, human_feedback="", system_metrics={}, report_content=""
+            proposed_action=None, human_feedback=None, system_metrics={}, report_content="",
+            thread_id=thread_id 
         )
         
-        final_state = diagnostic_agent_instance.invoke(initial_state)
+        final_state = diagnostic_agent_instance.invoke(initial_state, config=config)
         agent_final_message = final_state['messages'][-1].content if final_state['messages'] else "No final message from agent."
         diagnosis_outcome = final_state.get("final_result", "unknown_outcome")
 
@@ -209,7 +238,11 @@ async def diagnose_alert(alert_payload: Dict[str, Any] = Body(...)):
             AGENT_DIAGNOSIS_COUNT.labels(outcome="info").inc()
 
         logger.info(f"Agent diagnostic run completed. Final status: {agent_final_message}")
-        return {"status": "success", "agent_diagnosis": agent_final_message}
+        return {"status": "success", 
+                "agent_diagnosis": agent_final_message,
+                "thread_id": thread_id,
+                "current_agent_state": final_state 
+                }
 
     except Exception as e:
         AGENT_ERROR_COUNT.labels(endpoint="/diagnose_alert", error_type=type(e).__name__).inc()
