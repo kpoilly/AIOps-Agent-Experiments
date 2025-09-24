@@ -74,3 +74,10 @@ Now, you can interact with the system and observe the agent's behavior.
     ```bash
     make stop
     ```
+
+<img width="1063" height="566" alt="image" src="https://github.com/user-attachments/assets/9f8f5580-4674-4b0d-b123-1d8a0812b5b7" />
+
+<img width="1183" height="769" alt="image" src="https://github.com/user-attachments/assets/1a7d2767-a9cc-49e8-9975-6f371e1c8216" />
+
+<img width="1580" height="755" alt="image" src="https://github.com/user-attachments/assets/665c7276-68a7-4d9d-a4be-8386cbdfbeeb" />
+
