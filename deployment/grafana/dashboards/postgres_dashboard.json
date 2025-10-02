@@ -1,0 +1,169 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": "Grafana",
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "gnetId": null,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "datasource": "PostgreSQL",
+      "fieldConfig": {
+        "defaults": {
+          "custom": {},
+          "max": null,
+          "min": 0,
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercent": false,
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": "PostgreSQL",
+          "rawSql": "SELECT \n  $__timeGroup(timestamp, '1m') AS time,\n  count(thread_id) AS checkpoint_count\nFROM langchain_checkpoint\nWHERE\n  $__timeFilter(timestamp)\nGROUP BY 1\nORDER BY 1",
+          "refId": "A",
+          "format": "time_series"
+        }
+      ],
+      "title": "Checkpoint Count (Last Hour)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "uid": "postgres-datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {},
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercent": false,
+        "textMode": "auto"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "uid": "postgres-datasource"
+          },
+          "rawSql": "SELECT COUNT(DISTINCT thread_id) FROM langchain_thread WHERE $__timeFilter(created_at)",
+          "refId": "A",
+          "format": "table"
+        }
+      ],
+      "title": "Unique Active Threads",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "uid": "postgres-datasource"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {}
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "id": 4,
+      "options": {
+        "colorByState": true,
+        "displayMode": "series",
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "mergeValues": true,
+        "orientation": "horizontal",
+        "showValue": "last"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "uid": "postgres-datasource"
+          },
+          "rawSql": "SELECT thread_id, timestamp, (LENGTH(state::text) / 1024.0) FROM langchain_checkpoint WHERE $__timeFilter(timestamp) ORDER BY timestamp DESC LIMIT 10",
+          "refId": "A",
+          "format": "table"
+        }
+      ],
+      "title": "Recent Checkpoints (Size in KB)",
+      "type": "table"
+    }
+  ],
+  "schemaVersion": 36,
+  "style": "dark",
+  "tags": [],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "",
+  "title": "LangGraph Checkpoints - PostgreSQL Health",
+  "uid": "langgraph_pg_checkpoints",
+  "version": 1
+}

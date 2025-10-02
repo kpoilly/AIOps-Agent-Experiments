@@ -1,6 +1,5 @@
 from typing import List, Annotated, Any, Literal, Optional
 from typing_extensions import TypedDict
-
 from langchain_core.messages import BaseMessage
 
 def add_messages(left: List[BaseMessage], right: List[BaseMessage]) -> List[BaseMessage]:
@@ -20,5 +19,9 @@ class AgentState(TypedDict):
     prometheus_data: str
     loki_logs: str
     grafana_link: str
-    
+
+    thread_id: Optional[str]
+    proposed_action: Optional[str]
+    human_feedback: Optional[str]
+
     final_result: Any

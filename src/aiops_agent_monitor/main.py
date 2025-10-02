@@ -126,8 +126,11 @@ def llm_agent_node(state: AgentState) -> Dict[str, Any]:
     
     llm_with_tools = llm_for_deployed_agent.bind_tools(deployed_diagnostic_tools)
     llm_chain = prompt_for_llm | llm_with_tools
+    
     result: BaseMessage = llm_chain.invoke({"messages": state['messages']})
+    
     logger.info(f"LLM produced result: {result}")
+    
     return {"messages": [result]}
 
 def finalize_diagnosis_node(state: AgentState) -> Dict[str, Any]:

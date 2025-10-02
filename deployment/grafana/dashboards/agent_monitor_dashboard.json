@@ -3,7 +3,7 @@
     "list": [
       {
         "builtIn": 1,
-        "datasource": "-- Grafana --",
+        "datasource": "Grafana",
         "enable": true,
         "hide": true,
         "iconColor": "rgba(0, 211, 255, 1)",
@@ -311,10 +311,7 @@
       "type": "stat"
     },
     {
-      "datasource": {
-        "type": "loki",
-        "uid": "fex2nb1kr2nswa"
-      },
+      "datasource": "Loki",
       "fieldConfig": {
         "defaults": {},
         "overrides": []
@@ -341,10 +338,7 @@
       "pluginVersion": "12.1.1",
       "targets": [
         {
-          "datasource": {
-            "type": "loki",
-            "uid": "fex2nb1kr2nswa"
-          },
+          "datasource": "Loki",
           "direction": "backward",
           "editorMode": "builder",
           "expr": "{job=\"docker\", container_name=\"ai-agents-mlops-course-aiops-agent-monitor-1\"}",

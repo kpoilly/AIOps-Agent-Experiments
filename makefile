@@ -23,25 +23,8 @@ test-api:
 		-d '{"text": "What a spectacular shot from Steph Curry!"}'
 
 evaluation:
-	docker compose up -d --build evaluation
+	dockercompose up -d --build evaluation
 
 trigger-alert-critical:
 	@echo "Triggering a CRITICAL alert to the AIOps Monitor Agent Service..."
-	curl -X POST \
-		-H "Content-Type: application/json" \
-		-d '{
-			"alerts": [
-				{
-				"labels": {
-					"alertname": "NewsClassifierHighCPULoad",
-					"service": "news-classifier-api",
-					"severity": "critical"
-				},
-				"annotations": {
-					"summary": "CPU load is unusually high on news-classifier-api.",
-					"description": "Observed sustained high CPU utilization, exceeding 90% for 10 minutes."
-				}
-				}
-			]
-			}' \
-		http://localhost:8005/diagnose_alert            
+	curl -X POST -H "Content-Type: application/json" -d '{"alerts": [{"labels": {"alertname": "HighCPULoad", "service": "", "severity": "critical"}, "annotations": {"summary": "CPU load is unusually high.", "description": "Observed sustained high CPU utilization, exceeding 90% for 10 minutes."}}]}' http://localhost:8000/diagnose_alert            

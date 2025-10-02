@@ -10,6 +10,16 @@ services:
     depends_on:
       - news-classifier-api
 
+  api-gateway:
+    build: ./src/api_gateway
+    ports:
+      - "8000:8000"
+    environment:
+      - AGENT_CORE_SERVICE_URL=http://aiops-agent-monitor:8005/diagnose_alert
+    depends_on:
+      - aiops-agent-monitor
+    restart: always
+
   aiops-agent-monitor:
     build: ./src/aiops_agent_monitor
     ports:
@@ -25,11 +35,47 @@ services:
       - POSTGRES_DB=${POSTGRES_DB}
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - PROMETHEUS_TOOL_SERVICE_URL=http://prometheus-tool-service:8001
+      - LOKI_TOOL_SERVICE_URL=http://loki-tool-service:8002
+      - GRAFANA_TOOL_SERVICE_URL=http://grafana-tool-service:8003
     depends_on:
       - prometheus
       - loki
       - news-classifier-api
       - postgres
+      - prometheus-tool-service
+      - loki-tool-service
+      - grafana-tool-service
+    restart: always
+
+  prometheus-tool-service:
+    build: ./src/tool_services/prometheus_tool
+    ports:
+      - "8001:8001"
+    environment:
+      - PROMETHEUS_URL=http://prometheus:9090
+    depends_on:
+      - prometheus
+    restart: always
+
+  loki-tool-service:
+    build: ./src/tool_services/loki_tool
+    ports:
+      - "8002:8002"
+    environment:
+      - LOKI_URL="http://loki:3100"
+    depends_on:
+      - loki
+    restart: always
+
+  grafana-tool-service:
+    build: ./src/tool_services/grafana_tool
+    ports:
+      - "8003:8003"
+    environment:
+      - GRAFANA_URL="http://grafana:3000"
+    depends_on:
+      - grafana
     restart: always
 
   prometheus:
@@ -62,6 +108,9 @@ services:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
       - GF_DASHBOARDS_JSON_ENABLED=true
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
     depends_on:
       - prometheus
     restart: always

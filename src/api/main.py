@@ -93,6 +93,7 @@ class PredictionOutput(BaseModel):
     category: str
     score: float
 
+# Modèle de données pour l'évaluation
 class EvaluationItem(BaseModel):
     text: str
     true_label: str
@@ -123,7 +124,6 @@ async def predict(article: ArticleInput):
         confidence_score = results[0]['score']
         predictions_by_category.labels(category=predicted_category).inc()
         prediction_confidence_score_histogram.observe(confidence_score)
-
         logger.info(f"Classified text: '{article.text[:50]}...' into category: '{predicted_category}' with score: {confidence_score:.4f}")
         return PredictionOutput(category=predicted_category, score=confidence_score)
 
