@@ -7,8 +7,6 @@ services:
 
   evaluation:
     build: ./src/evaluation
-    depends_on:
-      - news-classifier-api
 
   api-gateway:
     build: ./src/api_gateway
@@ -170,4 +168,5 @@ volumes:
   prometheus_data: {}
   grafana_data: {}
   loki_data: {}
+
   postgres_data: {}
